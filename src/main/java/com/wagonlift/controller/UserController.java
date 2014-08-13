@@ -1,16 +1,25 @@
 package com.wagonlift.controller;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.util.Map;
+
+import javax.servlet.http.HttpServletResponse;
 
 import net.sf.json.JSONObject;
 import net.sf.json.JSONSerializer;
+import net.sf.json.JsonConfig;
+import net.sf.json.util.PropertyFilter;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -21,6 +30,9 @@ import org.springframework.web.servlet.ModelAndView;
 
 import com.google.common.collect.Maps;
 import com.wagonlift.constants.Constants;
+import com.wagonlift.form.UserRegistrationForm;
+import com.wagonlift.models.User;
+import com.wagonlift.models.UserVehicle;
 import com.wagonlift.services.UserService;
 import com.wagonlift.utils.BCrypt;
 import com.wagonlift.utils.Utils;
@@ -191,18 +203,18 @@ public class UserController {
 		logger.info("/user/register called, with login =  " + login + " password " + "****" + " phoneno " + phoneNo);
 		
 		if(StringUtils.isEmpty(login) || StringUtils.isEmpty(password) || StringUtils.isEmpty(phoneNo) ){
-			logger.info("/user/register return, with result =  false, empty/null parameters");	
-			return null;
+			logger.info("/user/register return, with result =  false, empty/null parameters");				
+			return "{\"Status\":\"Failure\",\"Result\":\"empty parameters\"}";
+			
 		}
 		
-		if(!Utils.validateLogin(login)){
-			logger.info("/user/register return, with result =  false, invalid login value");	
-			return null;
+		if(!Utils.validateLogin(login)){			
+			return "{\"Status\":\"Failure\",\"Result\":\"invalid login value\"}";
 		}
 		
 		if(!Utils.validatePhone(phoneNo)){
-			logger.info("/user/register return, with result =  false, invalid login value");	
-			return null;
+			logger.info("/user/register return, with result =  false, invalid phone value");			
+			return "{\"Status\":\"Failure\",\"Result\":\"invalid phone value\"}";
 		}
 		
 		password = BCrypt.hashpw(password, BCrypt.gensalt(Constants.BCRYPT_SALT));
@@ -221,7 +233,7 @@ public class UserController {
 	 * @param phoneNo The user phone number.
 	 * @return True / False
 	 */
-	@RequestMapping(value="/user/verifyotp", method=RequestMethod.POST)
+	@RequestMapping(value="/user/verifyotp.do", method=RequestMethod.POST)
 	public @ResponseBody boolean verifyUserOTP(@RequestParam("sid") String sid, @RequestParam("login") String login,
 			@RequestParam("code") String code){
 		
@@ -353,7 +365,7 @@ public class UserController {
 		return false;
 	}
 
-	@RequestMapping(value="/user/activate/{activationId}", method=RequestMethod.GET)
+	@RequestMapping(value="/user/activate.do/{activationId}", method=RequestMethod.GET)
 	public @ResponseBody Map<String, String> activateAccount(@PathVariable("activationId") String activationId) {
 		
 		logger.info("/user/activate/{activationId} called, with activationId == " + activationId);
@@ -438,13 +450,13 @@ public class UserController {
 	
 	}
 	
-	@RequestMapping(value="/user/getlogin", method = RequestMethod.POST)
+	@RequestMapping(value="/user/getlogin.do", method = RequestMethod.POST)
 	public @ResponseBody boolean getUserLogin(@RequestParam("login") String login, @RequestParam("password") String password){
 		
 		boolean result = false;
 		logger.info("/user/getlogin called with login "+ login + " password " +"*****");
 		
-		if(Utils.isNull(login) || Utils.isNull(password) || Utils.validateLogin(login)){
+		if(Utils.isNull(login) || Utils.isNull(password) || !Utils.validateLogin(login)){
 			logger.info("/user/getlogin return, result = false, Invalid Parameters ");
 			return false;
 		}
@@ -454,6 +466,77 @@ public class UserController {
 		return result;
 	}
 	
+	
+	@RequestMapping(value="/user/profile.do", method=RequestMethod.GET)
+	public String getProfile(@RequestParam("login") String login,Map model){
+		
+	    Map<String, Object> resultMap = getUserDetails(login);
+	    User user = (User)resultMap.get("user" );
+	    UserVehicle userVehicle = (UserVehicle)resultMap.get("vehicle" );
+	    UserRegistrationForm registrationForm = new UserRegistrationForm();
+	    registrationForm.populate(user,userVehicle);
+        model.put("registrationForm", registrationForm);
+		return "profile";
+	}
+	
+	
+	@RequestMapping(value="/user/profilePic.do", method=RequestMethod.GET)
+	public void getProfilePic(@RequestParam("login") String login,Map model,HttpServletResponse  response){
+		byte[] profilePicData=userService.getProfilePic(login);
+		
+		try {	
+			  response.setContentType("image/jpeg");
+			  OutputStream outputStream = response.getOutputStream();
+			  outputStream.write(profilePicData);
+			  outputStream.close();
+		} catch (Exception e) {
+		}
+			
+		
+	}
+	
+	@RequestMapping(value="/user/updateprofile.do", method=RequestMethod.POST)
+	public String updateProfile(@ModelAttribute("registrationForm") UserRegistrationForm registrationForm,@RequestParam(value="profilepic", required = false) MultipartFile picMultipartFile,
+			@RequestParam(value="vehiclePic", required = false) MultipartFile vehiclePicMultipart,Model model){
+		
+		JsonConfig jsonConfig = new JsonConfig();
+		jsonConfig.setJsonPropertyFilter(new PropertyFilter() {
+				 public boolean apply(Object source, String name, Object value) {
+					 try {
+						 Field field = source.getClass().getDeclaredField(name);
+						 Annotation[] annotations = field.getAnnotations();
+						 for(Annotation annotation : annotations) {
+							 if( annotation.toString().contains("JsonTransient") ){
+								 return true;
+							 }
+						 }
+					 } catch (SecurityException e) {
+						 //Not interested in these cases
+						 e.printStackTrace();
+					 } catch (NoSuchFieldException e) {
+					 //Not interested in these cases
+					 }
+				 return false;
+				 }
+		 });
+		JSONObject jsonObject = JSONObject.fromObject( registrationForm, jsonConfig ); 
+	
+		//JSONObject jsonObject = (JSONObject) JSONSerializer.toJSON(registrationForm);
+		if(jsonObject.isNullObject()){
+			//	logger.info("/user/register return, with result == " + statusMap.get("code"));
+			//	return statusMap;
+			
+		}
+		try {
+			userService.setUserProfile(registrationForm.getLogin(), jsonObject, picMultipartFile, vehiclePicMultipart);
+		} catch (Exception e) {				
+			e.printStackTrace();
+		}
+		return "profile";
+	}
+
+	
+
 	@RequestMapping(value="/user/getdetails", method = RequestMethod.GET)
 	public @ResponseBody Map<String, Object> getUserDetails(@RequestParam("login") String login){
 		

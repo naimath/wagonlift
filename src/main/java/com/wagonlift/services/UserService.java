@@ -255,8 +255,8 @@ public class UserService {
 			user.setPictureFile(pictureFile);
 		}
 		
-		user.setFirstName(detailsJson.getString("firstname"));
-		user.setLastName(detailsJson.getString("lastname"));
+		user.setFirstName(detailsJson.getString("firstName"));
+		user.setLastName(detailsJson.getString("lastName"));
 		user.setEmail(email);
 		user.setAboutMe(detailsJson.getString("aboutme"));
 		user.setAddress(detailsJson.getString("address"));
@@ -264,7 +264,7 @@ public class UserService {
 		user.setAdmin(false);
 
 		String content = activateGeneral + "\n\n\t" + activateURL
-				+ user.getActivationId() + "\n\n\t" + activateUsername + "  "
+				+ user.getActivationId()+".do" + "\n\n\t" + activateUsername + "  "
 				+ email;
 		boolean sendMailStatus = sendMail(activateSubject, email, content);
 
@@ -765,12 +765,12 @@ public class UserService {
 		
 		if(findUserbyColumnName("login", login)!=null){
 			logger.info("user found with login "+ login);
-			return null;
+			return "{\"Status\":\"Failure\",\"Result\":\"user found with login\"}";
 		}
 		
 		if(findUserbyColumnName("phoneNo", phoneNo)!=null){
 			logger.info("user found with phoneNo "+ phoneNo);
-			return null;
+			return "{\"Status\":\"Failure\",\"Result\":\"user found with phoneNo\"}";
 		}
 		
 		User user = new User();
@@ -782,12 +782,12 @@ public class UserService {
 		String sessionId = MOTPUtils.sendMobileOTP(phoneNo);
 		logger.info("Motp session id "+ sessionId + " for login "+ login);
 		if(StringUtils.isEmpty(sessionId)){
-			logger.info("Motp session id is not generated for login "+ login);
-			return null;
+			logger.info("Motp session id is not generated for login "+ login);		
+			return "{\"Status\":\"Failure\",\"Result\":\"Motp session id is not generated for login\"}";
 		}
 		
 		userDAO.save(user);
-		return sessionId;
+		 return "{\"Status\":\"Success\",\"Result\":\""+sessionId+"\"}";
 	}
 
 	/**
@@ -918,14 +918,14 @@ public class UserService {
 	 *  Validate Profile Params.
 	 */
 	private boolean validateUserProfile(JSONObject detailsJson, boolean isValid) {
-		String firstName = detailsJson.getString("firstname");
+		String firstName = detailsJson.getString("firstName");
 		// if name is not present, the it must return error.
 		if(isValid && Utils.isNull(firstName)){
 			logger.info(" first name is missing in the json Object " + detailsJson);
 			isValid = false;
 		}
 
-		String lastName = detailsJson.getString("lastname");
+		String lastName = detailsJson.getString("lastName");
 		// if name is not present, the it must return error.
 		if(isValid && Utils.isNull(lastName)){
 			logger.info(" last name is missing in the json Object " + detailsJson);
@@ -943,5 +943,18 @@ public class UserService {
 			isValid = false;
 		}
 		return isValid;
+	}
+
+	public byte[] getProfilePic(String login) {
+		User user = validateUser(login);
+		if(user == null){
+			logger.info("Either user is not found or not activated");
+			return null;
+		}
+		if(user.getPictureFile() !=null){
+			return user.getPictureFile().getContent();
+		}
+		return null;
+		
 	}
 }

@@ -54,11 +54,11 @@
 	<div class="fb"><a href="#" class="btn_2">Login with Facebook</a></div>
 	</div>
 	
-	<form name='loginForm' 	action="<c:url value='/j_spring_security_check' />" method='POST'>
+	<form name='loginForm' 	action="<c:url value='/user/getlogin.do' />" method='POST'>
 		<!-- Login Fields -->
 		<div id="login">Sign in using your registered account:<br/>
-		<input type="text" name='j_username' value="Username" onblur="if(this.value=='')this.value='Username';" onfocus="if(this.value=='Username')this.value='';"  class="login user"/>
-		<input type='text' name='j_password' value='Password'  onfocus="if(this.value=='' || this.value == 'Password') {this.value='';this.type='password'}"  onblur="if(this.value == '') {this.type='text';this.value=this.defaultValue}" class="login password"/>
+		<input type="text" name='login' value="Username" onblur="if(this.value=='')this.value='Username';" onfocus="if(this.value=='Username')this.value='';"  class="login user"/>
+		<input type='text' name='password' value='Password'  onfocus="if(this.value=='' || this.value == 'Password') {this.value='';this.type='password'}"  onblur="if(this.value == '') {this.type='text';this.value=this.defaultValue}" class="login password"/>
 		</div>
 		
 		<!-- Green Button -->
